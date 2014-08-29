@@ -8,8 +8,7 @@ using System.Collections;
 public class PaddleScript : MonoBehaviour 
 {
 	private Rigidbody2D physics;
-	private BoxCollider2D collider;
-	private const float speed = 4f; //the maximum horizontal speed of the paddle
+	private const float speed = 4.5f; //the maximum horizontal speed of the paddle
 	private float starty; //the y coordinate of the paddle in case it gets knocked out of place
 	private int _ailevel; //the level of diffuculty for the ai.  0 for human
 
@@ -27,7 +26,6 @@ public class PaddleScript : MonoBehaviour
 	void Start () 
 	{
 		physics = GetComponent<Rigidbody2D> ();
-		collider = GetComponent<BoxCollider2D> ();
 		starty = physics.position.y;
 		ailevel = 0;
 	}
@@ -126,6 +124,58 @@ public class PaddleScript : MonoBehaviour
 		{
 			Vector2 newvel = Vector2.zero;
 			physics.velocity = newvel;
+		}
+	}
+	
+	public void OnCollisionEnter2D(Collision2D coll) 
+	{
+		//modify the ball path if it hits the paddle
+		if (coll.gameObject.tag == "ball")
+		{
+			//compare the old ball velocity and the new one
+			BallScript ballCtrl = coll.gameObject.GetComponent<BallScript>();
+			Vector2 oldVel = ballCtrl.lastVelocity;
+			Rigidbody2D ballPhysc = coll.gameObject.rigidbody2D;
+			Vector2 newVel = ballPhysc.velocity;
+
+			//if the ball bounced off of the paddle in the opposite direction ...
+			if (oldVel.y * newVel.y < 0)
+			{
+				float angle;
+
+				//find the angle of reflection
+				if (newVel.x != 0.0f)
+					angle = (Mathf.Asin (newVel.x / newVel.magnitude) * (180.0f / Mathf.PI));
+				else
+					angle = 0.0f;
+
+				//find where the ball hit the paddle
+				CircleCollider2D ballColl = (CircleCollider2D) coll.collider;
+				float ballx = ballPhysc.position.x;
+				float paddlex = physics.position.x;
+				float paddlewidth = ((BoxCollider2D) collider2D).size.x;
+
+				//calculate the angle modifier
+				float diff = (ballx - paddlex) / (paddlewidth / 1.6f);
+				float weight = Mathf.Asin (Mathf.Clamp(diff, -1.0f, 1.0f));
+				float addAngle = weight * (180.0f / Mathf.PI);
+
+				//make it easier to straighten out the ball
+				if (Mathf.Abs(angle) > 45 && addAngle * angle < 0)
+					addAngle *= 2.0f;
+
+				//make sure the new angle isn't too flat
+				float newAngle = Mathf.Clamp(angle + addAngle, -60.0f, 60.0f);
+
+				//the new angle is different if it struck the bottom of the paddle
+				if (newVel.y < 0)
+					newAngle = -newAngle + 180.0f;
+
+				//rotate the ball path to the new angle
+				Quaternion q = Quaternion.AngleAxis(newAngle, new Vector3(0.0f, 0.0f, -1.0f));
+				Vector2 nextVel = q * (Vector2.up * oldVel.magnitude);
+				ballPhysc.velocity = nextVel;
+			}
 		}
 	}
 }
